@@ -1,0 +1,32 @@
+# Control del paso 1: fusion temprana (base) con los niveles 0-1 mas anchos (20 canales en vez de 16).
+# Mismos GMACs que siam_light (~17,5 frente a 17,9 con 32x128x128); separa 'mejor fusion' de 'mas computo'.
+# Mismo protocolo que modelos/mamba/configs/full.yaml (split 70/20/10 por centro, semilla, 250 epocas, patch,
+# validacion intermedia con 21 casos): solo cambia la red, para comparar con full_base_fold0 en validacion.
+experiment: ctrl_ancho
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (mismo split que full_base_fold0)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 60      # ~60 MB por caso en RAM -> ~3.6 GB
+  refresh_per_epoch: 10
+
+model:
+  variant: base
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+  features: [20, 20, 32, 48, 64, 96]
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1             # checkpoint de reanudacion en cada epoca
+  val_every: 25
+  val_cases_during_training: 21   # igual que full_base_fold0

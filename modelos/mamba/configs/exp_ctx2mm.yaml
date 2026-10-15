@@ -1,0 +1,29 @@
+# Experimento de contexto: spacing 2 x 2 x 3 mm y patch 48 x 96 x 96 -> 144 x 192 x 192 mm de contexto
+# (actual: 96 x 128 x 128 mm) con un numero de voxeles parecido. Mismo split 70/20/10 que full.yaml.
+experiment: full_ctx2mm
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (test de la misma distribucion)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [2.0, 2.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 200     # a 2 mm cada caso ocupa ~15 MB en RAM -> ~3 GB
+  refresh_per_epoch: 20
+
+model:
+  variant: base
+  patch_size_zyx: [48, 96, 96]     # 144 x 192 x 192 mm de contexto
+  chunk_size: 8
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1             # checkpoint de reanudacion en cada epoca (se pierde como mucho 1 epoca)
+  val_every: 25
+  val_cases_during_training: 21   # igual que full.yaml (base), para comparar con el mismo protocolo

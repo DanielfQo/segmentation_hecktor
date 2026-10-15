@@ -1,0 +1,31 @@
+# Validacion cruzada leave-one-center-out: 7 folds, en cada uno un hospital completo es el test.
+# Ojo: el fold de MDA deja 396 casos (58 %) en test y entrena solo con 284.
+# Lanzar con:  python -m mambalite3d.tools.cross_validate --config configs/full_loco.yaml
+experiment: full_base_loco
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: loco
+    fractions: [0.7, 0.2, 0.1]  # solo cuenta la proporcion train:val = 70:20
+    n_folds: 7
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 60      # ~60 MB por caso en RAM -> ~3.6 GB; subelo si tienes mas RAM libre
+  refresh_per_epoch: 10
+
+model:
+  variant: base
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1             # checkpoint de reanudacion en cada epoca (se pierde como mucho 1 epoca)
+  val_every: 25
+  val_cases_during_training: 21   # validacion rapida cada val_every epocas (3 por centro); guarda checkpoint_best

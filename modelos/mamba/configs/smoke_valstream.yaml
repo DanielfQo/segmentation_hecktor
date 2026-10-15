@@ -1,0 +1,28 @@
+# Prueba: validacion intermedia con todos los casos de validacion (>30, en streaming), 2 epocas cortas.
+experiment: smoke_valstream
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: 25
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (test de la misma distribucion)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 10     # menor que los casos de train para probar la cache rodante
+  refresh_per_epoch: 2
+
+model:
+  variant: base
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 2
+  iters_per_epoch: 4
+  batch_size: 2
+  save_every: 1
+  val_every: 1
+  val_cases_during_training: null   # >30 casos: la validacion se hace en streaming

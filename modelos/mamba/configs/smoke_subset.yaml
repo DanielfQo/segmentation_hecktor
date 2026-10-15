@@ -1,0 +1,29 @@
+# Prueba corta con un subconjunto: 5 casos por centro (35 casos), split 70/20/10, para verificar que todo funciona
+# (carga + ROI al vuelo, cache rodante en RAM, augmentation en GPU, validacion intermedia, evaluacion final).
+experiment: smoke_subset
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: 5
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (test de la misma distribucion)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 10     # menor que los casos de train para probar la cache rodante
+  refresh_per_epoch: 2
+
+model:
+  variant: base
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 8
+  iters_per_epoch: 50
+  batch_size: 2
+  save_every: 2
+  val_every: 4
+  val_cases_during_training: 2

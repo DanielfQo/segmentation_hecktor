@@ -1,0 +1,28 @@
+# Experimento de contexto: patch 48 x 160 x 160 (1 x 1 x 3 mm), mismo split 70/20/10 que full.yaml.
+experiment: exp_patch160
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (test de la misma distribucion)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 60      # ~60 MB por caso en RAM -> ~3.6 GB; subelo si tienes mas RAM libre
+  refresh_per_epoch: 10
+
+model:
+  variant: base
+  patch_size_zyx: [48, 160, 160]   # 144 x 160 x 160 mm de contexto; 2,97 GB, ~1 s/it en la RTX 3050
+  chunk_size: 8
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1             # checkpoint de reanudacion en cada epoca (se pierde como mucho 1 epoca)
+  val_every: 25
+  val_cases_during_training: 21   # igual que full.yaml (base), para comparar con el mismo protocolo

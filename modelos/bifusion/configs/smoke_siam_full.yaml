@@ -1,0 +1,30 @@
+# Prueba corta con datos reales para siam_full (no sirve para comparar resultados): 5 casos por centro,
+# 8 epocas x 50 iteraciones. Comprueba el ciclo completo (lectura al vuelo, cache rodante, augmentation en GPU,
+# validacion intermedia, checkpoints, --no-test y evaluacion con bifusion3d.evaluate) antes de un entrenamiento largo.
+experiment: smoke_siam_full
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: 5
+  split:
+    mode: stratified
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 10     # menor que los casos de train para probar la cache rodante
+  refresh_per_epoch: 2
+
+model:
+  variant: siam_full
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 8
+  iters_per_epoch: 50
+  batch_size: 2
+  save_every: 2
+  val_every: 4
+  val_cases_during_training: 2

@@ -1,0 +1,10 @@
+# PyTorch se instala aparte (setup_env.bat) desde download.pytorch.org con la version de CUDA adecuada.
+numpy
+scipy
+SimpleITK
+pandas
+pyyaml
+tqdm
+matplotlib
+connected-components-3d
+pytest

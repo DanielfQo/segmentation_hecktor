@@ -1,0 +1,29 @@
+# Prueba de la validacion cruzada de 7 folds: 7 casos por centro, 2 epocas cortas (solo verifica el codigo).
+experiment: smoke_cv7
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: 7
+  split:
+    mode: stratified
+    fractions: [0.7, 0.2, 0.1]
+    n_folds: 7
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 10     # menor que los casos de train para probar la cache rodante
+  refresh_per_epoch: 2
+
+model:
+  variant: base
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 2
+  iters_per_epoch: 3
+  batch_size: 2
+  save_every: 1
+  val_every: 1
+  val_cases_during_training: 2

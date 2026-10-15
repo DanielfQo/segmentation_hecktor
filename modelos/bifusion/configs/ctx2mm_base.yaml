@@ -1,0 +1,31 @@
+# Experimento de contexto con el modelo base (fusion temprana), lanzado desde bifusion para usar una sola cola:
+# spacing 2 x 2 x 3 mm y patch 48 x 96 x 96 -> 144 x 192 x 192 mm de contexto (frente a 96 x 128 x 128 mm).
+# Es exactamente modelos/mamba/configs/exp_ctx2mm.yaml (que no se toca); solo cambia el nombre del experimento,
+# y el run se guarda en runs/ctx2mm_base de esta carpeta.
+experiment: ctx2mm_base
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (mismo split que full_base_fold0)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [2.0, 2.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 200     # a 2 mm cada caso ocupa ~15 MB en RAM -> ~3 GB
+  refresh_per_epoch: 20
+
+model:
+  variant: base
+  patch_size_zyx: [48, 96, 96]     # 144 x 192 x 192 mm de contexto
+  chunk_size: 8
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1
+  val_every: 25
+  val_cases_during_training: 21   # igual que full_base_fold0

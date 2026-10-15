@@ -1,0 +1,42 @@
+# Datos de HECKTOR 2025 (no se pueden redistribuir y pesan decenas de GB)
+HECKTOR2025_raw/
+*.nii
+*.nii.gz
+*.mha
+*.nrrd
+
+# Resultados de los entrenamientos: checkpoints y salidas pesadas
+*.pth
+*.pt
+*.ckpt
+modelos/*/runs/
+# se conservan las tablas y graficas finales si se copian aqui
+!resultados/
+
+# Cola de trabajos: logs y estado del ejecutor
+modelos/*/jobs/logs/
+modelos/*/jobs/running/
+modelos/*/jobs/runner.lock
+modelos/*/jobs/runner_heartbeat.txt
+modelos/*/jobs/enfriar_segundos.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Entornos
+.venv/
+venv/
+.env
+
+# Editores y sistema
+.vscode/
+.idea/
+.claude/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

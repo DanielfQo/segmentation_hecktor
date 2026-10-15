@@ -1,0 +1,15 @@
+# Dependencias de modelos/bifusion y modelos/mamba (Python 3.10-3.12).
+# Con conda (recomendado):
+#   conda create -n mambalite3d python=3.11
+#   conda activate mambalite3d
+#   conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia    # o la version de CUDA de la maquina
+#   pip install -r requirements.txt
+torch>=2.1
+numpy>=1.24
+scipy>=1.10
+SimpleITK>=2.3
+PyYAML>=6.0
+matplotlib>=3.7
+pytest>=7.4
+# Opcional, solo Linux con CUDA: kernel rapido del escaneo selectivo. Sin el, se usa la version en PyTorch puro.
+# mamba-ssm>=2.2

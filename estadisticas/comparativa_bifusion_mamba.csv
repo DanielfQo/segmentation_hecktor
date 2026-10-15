@@ -1,0 +1,6 @@
+model_id,label,family,fusion_type,params_M,gmacs,gtvp_dice_2025,gtvn_dice_agg_2025,gtvn_f1_agg_2025,score_2025,gtvp_dice_agg_2022,dsc_agg_mean_2022,rank_gtvp_2025,rank_gtvn_2025,rank_borda_2025,rank_2022
+full_base_fold0,Mamba Base,MambaLite3D,Fusión Temprana (Canales 0-1),4.05,12.47,0.6565,0.6706,0.2964,0.6636,0.7316,0.7011,2.0,5.0,4.0,5.0
+exp_wide,Mamba Wide,MambaLite3D,Fusión Temprana (Canales ampliados),15.8,39.75,0.6362,0.6958,0.4247,0.666,0.7236,0.7097,5.0,2.0,4.0,3.0
+full_unet,U-Net Res,Baseline CNN,Fusión Temprana (Conv residual pura),44.59,134.99,0.659,0.7193,0.3268,0.6891,0.737,0.7282,1.0,3.0,1.0,2.0
+siam_light,BiFusion Light,BiFusion,Codificador Siamés L0-1 + GatedFusion3D,4.05,17.9,0.6549,0.6796,0.3247,0.6672,0.7333,0.7065,3.0,4.0,4.0,4.0
+siam_full,BiFusion Full,BiFusion,Siamés completo + Cross/Concat Mamba L4-5,4.26,19.68,0.6525,0.7301,0.3598,0.6913,0.7357,0.7329,4.0,1.0,2.0,1.0
