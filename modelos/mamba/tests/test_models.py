@@ -107,3 +107,55 @@ def test_network_gpu_amp_backward():
     for p in model.parameters():
         if p.grad is not None:
             assert torch.isfinite(p.grad).all()
+
+
+def test_dual_encoder_streams_are_independent():
+    patch = [16, 32, 32]
+    strides, kernels = plan_network(patch, [3.0, 1.0, 1.0], min_size=2)
+    model = build_model("dual", strides, kernels, chunk_size=32).eval()
+    enc = model.encoder
+    assert len(enc.fuse) == len(strides)
+    x = torch.randn(1, 2, *patch)
+    ct, pet = enc.ct(x[:, 0:1]), enc.pet(x[:, 1:2])
+    x2 = x.clone()
+    x2[:, 1] = torch.randn_like(x2[:, 1])  # changing PET must not change the CT stream
+    assert all(torch.equal(a, b) for a, b in zip(ct, enc.ct(x2[:, 0:1])))
+    assert not all(torch.equal(a, b) for a, b in zip(pet, enc.pet(x2[:, 1:2])))
+    single = build_model("base", strides, kernels, chunk_size=32)
+    n = lambda m: sum(p.numel() for p in m.parameters())
+    assert n(model) > n(single)
+
+
+def _encoder_skips_shapes(model, x):
+    return [tuple(s.shape) for s in model.encoder(x)]
+
+
+def test_dual_mid_fusion_shares_the_mamba_levels():
+    patch = [16, 32, 32]
+    strides, kernels = plan_network(patch, [3.0, 1.0, 1.0], min_size=2)
+    mid = build_model("dualmid", strides, kernels, chunk_size=32).eval()
+    enc, k = mid.encoder, min(mid.mamba_levels)
+    assert len(enc.ct.stages) == len(enc.pet.stages) == len(enc.fuse) == k
+    assert len(enc.shared.stages) == len(strides) - k
+    assert not any(isinstance(m, MambaStage) for m in list(enc.ct.modules()) + list(enc.pet.modules()))
+    x = torch.randn(1, 2, *patch)
+    base = build_model("base", strides, kernels, chunk_size=32).eval()
+    assert _encoder_skips_shapes(mid, x) == _encoder_skips_shapes(base, x)
+    x2 = x.clone()
+    x2[:, 1] = torch.randn_like(x2[:, 1])  # changing PET must not change the CT stream
+    assert all(torch.equal(a, b) for a, b in zip(enc.ct(x[:, 0:1]), enc.ct(x2[:, 0:1])))
+    n = lambda m: sum(p.numel() for p in m.parameters())
+    assert n(base) < n(mid) < n(build_model("dual", strides, kernels, chunk_size=32))
+
+
+def test_global_attention_only_at_the_deepest_levels():
+    patch = [16, 32, 32]
+    strides, kernels = plan_network(patch, [3.0, 1.0, 1.0], min_size=2)
+    model = build_model("m4lite", strides, kernels, chunk_size=32)
+    n = len(strides)
+    assert model.mamba_levels == list(range(n - 4, n)) and model.lgfm_levels == [n - 2, n - 1]
+    for lvl in model.mamba_levels:
+        for stage in (model.encoder.stages[lvl][1], model.decoder.block[lvl]):
+            assert isinstance(stage, MambaStage)
+            assert isinstance(stage.lgfm, LGFM3D) == (lvl >= n - 2)
+    assert isinstance(model.bottleneck.lgfm, LGFM3D)

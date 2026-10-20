@@ -1,0 +1,28 @@
+# Doble codificador ancho (variante dualwide): mismo protocolo que exp_wide, para comparar con wide.
+experiment: exp_dualwide
+seed: 12345
+
+data:
+  root: ../../HECKTOR2025_raw
+  cases_per_center: null
+  split:
+    mode: stratified          # 70/20/10 dentro de cada centro (test de la misma distribucion)
+    fractions: [0.7, 0.2, 0.1]
+  target_spacing_xyz: [1.0, 1.0, 3.0]
+  pet_norm: zscore
+  load_threads: 2
+  max_cached_cases: 60      # ~60 MB por caso en RAM -> ~3.6 GB; subelo si tienes mas RAM libre
+  refresh_per_epoch: 10
+
+model:
+  variant: dualwide             # 20,6 M parametros, 2,1 GB, ~0,57 s/it con mamba_ssm
+  patch_size_zyx: [32, 128, 128]
+  chunk_size: 8
+
+train:
+  epochs: 250
+  iters_per_epoch: 250
+  batch_size: 2
+  save_every: 1             # checkpoint de reanudacion en cada epoca (se pierde como mucho 1 epoca)
+  val_every: 25
+  val_cases_during_training: null  # todos los casos de validacion: el mejor checkpoint se elige con los 135

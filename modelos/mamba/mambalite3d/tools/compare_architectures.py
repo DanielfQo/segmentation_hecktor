@@ -45,6 +45,11 @@ VARIANT_DESCRIPTIONS = {
     "g1": "Ablación: 1 solo grupo de canales para el escaneo Mamba",
     "g2": "Ablación: 2 grupos de canales para el escaneo Mamba",
     "m3": "Ablación: 3 niveles con Mamba en vez de 2",
+    "dual": "MambaLite3D con un codificador por modalidad (CT y PET), fusión por nivel en los skips",
+    "dualwide": "Doble codificador con canales anchos ([24..192], bottleneck 256)",
+    "dualmid": "Fusión intermedia: CT y PET por separado en los niveles convolucionales, niveles con Mamba compartidos",
+    "m3lite": "Mamba también en el nivel 3; atención global solo en los 2 niveles más profundos",
+    "m4lite": "Mamba también en los niveles 2 y 3; atención global solo en los 2 niveles más profundos",
 }
 
 DEFAULT_RUNS = {

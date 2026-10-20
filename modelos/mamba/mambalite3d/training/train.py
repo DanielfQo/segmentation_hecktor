@@ -329,7 +329,10 @@ def main(argv=None) -> int:
     n_params = sum(p.numel() for p in model.parameters())
     sizes = feature_map_sizes(patch, strides)
     log(f"patch zyx {patch}  strides {strides}  kernels {kernels}")
-    log(f"mapas por nivel {sizes}  canales {model.feats}  niveles Mamba {model.mamba_levels}  niveles CGA {model.cga_levels}")
+    log(f"mapas por nivel {sizes}  canales {model.feats}  niveles Mamba {model.mamba_levels}  "
+        f"niveles con atencion global {model.lgfm_levels}  niveles CGA {model.cga_levels}")
+    if model.cfg.dual_encoder:
+        log(f"doble codificador, fusion '{model.cfg.dual_fusion}'")
     log(f"parametros {n_params / 1e6:.3f} M")
 
     loss_fn = DeepSupervisionLoss(DiceCELoss())

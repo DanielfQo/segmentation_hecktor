@@ -25,13 +25,25 @@ def stage_features(n_stages: int, base: Optional[Sequence[int]] = None, keep: st
     return base + [base[-1]] * (n_stages - len(base))
 
 
+def lgfm_at(cfg: MambaLiteConfig, lvl: int, n: int) -> bool:
+    """Whether the MambaStage of level lvl keeps LGFM3D. With n_lgfm_levels set, only the deepest levels do, so Mamba
+    can go to large maps without the quadratic cost of global attention."""
+    return cfg.use_lgfm and (cfg.n_lgfm_levels is None or lvl >= n - cfg.n_lgfm_levels)
+
+
 class Encoder(nn.Module):
-    def __init__(self, in_channels: int, feats: List[int], strides, kernels, cfg: MambaLiteConfig, mamba_levels):
+    """Stages of the given levels (default all). Stage 0 takes the input; a range that starts at level l > 0 takes
+    the output of level l - 1 (the shared deep part of DualEncoder)."""
+
+    def __init__(self, in_channels: int, feats: List[int], strides, kernels, cfg: MambaLiteConfig, mamba_levels,
+                 levels: Optional[Sequence[int]] = None):
         super().__init__()
         n = len(feats)
         self.stages = nn.ModuleList()
-        self.stages.append(nn.Sequential(ConvIN(in_channels, feats[0], kernels[0]), BasicResBlock(feats[0], kernels[0])))
-        for lvl in range(1, n):
+        for lvl in range(n) if levels is None else levels:
+            if lvl == 0:
+                self.stages.append(nn.Sequential(ConvIN(in_channels, feats[0], kernels[0]), BasicResBlock(feats[0], kernels[0])))
+                continue
             if lvl == 1:
                 k_stem = [7 if s > 1 else 3 for s in strides[1]]
                 down = nn.Sequential(
@@ -45,7 +57,7 @@ class Encoder(nn.Module):
                 down = nn.MaxPool3d(kernel_size=strides[lvl], stride=strides[lvl])
                 cin = feats[lvl - 1]
             if lvl in mamba_levels:
-                block = MambaStage(cin, feats[lvl], cfg)
+                block = MambaStage(cin, feats[lvl], cfg, lgfm=lgfm_at(cfg, lvl, n))
             elif cin != feats[lvl]:
                 block = nn.Sequential(ConvIN(cin, feats[lvl], kernels[lvl]), BasicResBlock(feats[lvl], kernels[lvl]))
             else:
@@ -57,6 +69,37 @@ class Encoder(nn.Module):
         for stage in self.stages:
             x = stage(x)
             skips.append(x)
+        return skips
+
+
+class DualEncoder(nn.Module):
+    """One encoder per modality (channel 0 = CT, channel 1 = PET).
+
+    Up to level shared_from - 1 the two streams never exchange features; at each of those levels their outputs are
+    concatenated and mixed by a 1x1x1 convolution, which is the skip the decoder receives. From level shared_from on
+    (None: never) a single encoder continues from the last fused map. Either way the bottleneck and the decoder
+    receive the same shapes as with the single encoder."""
+
+    def __init__(self, feats: List[int], strides, kernels, cfg: MambaLiteConfig, mamba_levels,
+                 shared_from: Optional[int] = None):
+        super().__init__()
+        n = len(feats)
+        k = n if shared_from is None else shared_from
+        if not 1 <= k <= n:
+            raise ValueError(f"shared_from must be between 1 and {n}, got {shared_from}")
+        self.ct = Encoder(1, feats, strides, kernels, cfg, mamba_levels, levels=range(k))
+        self.pet = Encoder(1, feats, strides, kernels, cfg, mamba_levels, levels=range(k))
+        self.fuse = nn.ModuleList(
+            nn.Sequential(nn.Conv3d(2 * c, c, 1), norm3d(c), nn.LeakyReLU(0.01, inplace=True)) for c in feats[:k]
+        )
+        self.shared = Encoder(feats[k - 1], feats, strides, kernels, cfg, mamba_levels, levels=range(k, n)) if k < n else None
+
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
+        ct = self.ct(x[:, 0:1])
+        pet = self.pet(x[:, 1:2])
+        skips = [f(torch.cat([a, b], dim=1)) for f, a, b in zip(self.fuse, ct, pet)]
+        if self.shared is not None:
+            skips += self.shared(skips[-1])
         return skips
 
 
@@ -85,7 +128,7 @@ class Decoder(nn.Module):
             else:
                 self.skip.append(FUE())
             if lvl in mamba_levels:
-                self.block.append(MambaStage(feats[lvl], feats[lvl], cfg))
+                self.block.append(MambaStage(feats[lvl], feats[lvl], cfg, lgfm=lgfm_at(cfg, lvl, n)))
             else:
                 self.block.append(BasicResBlock(feats[lvl], kernels[lvl]))
             self.heads.append(nn.Conv3d(feats[lvl], num_classes, 1) if lvl <= n - 2 else nn.Identity())
@@ -132,9 +175,23 @@ class MambaLite3D(nn.Module):
         self.cfg = cfg
         self.feats = feats
         self.mamba_levels = sorted(mamba_levels)
+        self.lgfm_levels = [lvl for lvl in self.mamba_levels if lgfm_at(cfg, lvl, n)]
         self.cga_levels = sorted(cga_levels)
         self.strides = [list(s) for s in strides]
-        self.encoder = Encoder(in_channels, feats, strides, kernels, cfg, mamba_levels)
+        if cfg.dual_encoder:
+            if in_channels != 2:
+                raise ValueError("dual_encoder needs exactly 2 input channels (CT, PET)")
+            if cfg.dual_fusion == "levels":
+                shared_from = None
+            elif cfg.dual_fusion == "mid":
+                if not mamba_levels:
+                    raise ValueError("dual_fusion 'mid' shares the encoder from the first Mamba level; there is none")
+                shared_from = min(mamba_levels)
+            else:
+                raise ValueError(f"unknown dual_fusion {cfg.dual_fusion!r}; use 'levels' or 'mid'")
+            self.encoder = DualEncoder(feats, strides, kernels, cfg, mamba_levels, shared_from)
+        else:
+            self.encoder = Encoder(in_channels, feats, strides, kernels, cfg, mamba_levels)
         if cfg.baseline:
             self.bottleneck = nn.Sequential(
                 ConvIN(feats[-1], cfg.bottleneck_features, kernels[-1]), BasicResBlock(cfg.bottleneck_features, kernels[-1])
@@ -183,7 +240,8 @@ def build_model(
     return MambaLite3D(in_channels, num_classes, strides, kernels, cfg, deep_supervision)
 
 
-MODEL_OVERRIDE_KEYS = ("chunk_size", "n_cga_levels", "n_mamba_levels", "features", "bottleneck_features")
+MODEL_OVERRIDE_KEYS = ("chunk_size", "n_cga_levels", "n_mamba_levels", "n_lgfm_levels", "features", "bottleneck_features",
+                       "dual_fusion")
 
 
 def model_overrides(model_cfg: dict) -> dict:

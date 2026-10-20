@@ -101,7 +101,7 @@ def describe(cases):
             i = sum(x["inter"] for x in c["1"]["pred"])
             rows.append((g * v / 1000, 2 * i / (p + g)))
     rows.sort()
-    q = np.array_split(np.array(rows), 4)
+    q = [a for a in np.array_split(np.array(rows), 4) if len(a)]  # fewer than 4 cases leave empty quartiles
     d["gtvp_dice_by_size_quartile"] = [
         {"ml_range": [round(float(a[:, 0].min()), 1), round(float(a[:, 0].max()), 1)], "mean_dice": round(float(a[:, 1].mean()), 3)}
         for a in q

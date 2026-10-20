@@ -48,9 +48,38 @@ Un patch de 32 × 128 × 128. Entrenamiento: batch 2 con AMP, solo la red. Infer
 - VRAM pico del entrenamiento completo, con la aumentación en GPU: base 1,33 GB, wide 1,93 GB, U-Net 2,12 GB.
 - La U-Net es tan rápida como el base aunque tiene 11 veces más operaciones. En Windows, Mamba corre en PyTorch puro, sin los kernels de CUDA.
 
+## PRIORIDAD: fase de arquitectura (antes de las ablaciones)
+
+Implementado el 19 de octubre en `mambalite3d/models/network.py`. Dos preguntas de diseño:
+
+- **¿Dónde combinar CT y PET?** `base` los junta en la entrada. `dual` (`DualEncoder`) usa un codificador completo por modalidad y los combina en cada nivel (concatenación + convolución 1×1×1). `dualmid` separa solo los niveles convolucionales 0 a 3 y comparte los niveles con Mamba (`dual_fusion: mid`). `dualmid` frente a `dual` solo difiere en si los niveles con Mamba van separados o compartidos, con el mismo cómputo.
+- **¿En qué resolución aporta Mamba?** `m3lite` y `m4lite` ponen Mamba también en el nivel 3 (2048 posiciones) o en los niveles 2 y 3 (16 384 posiciones). La atención global (LGFM3D) queda solo en los 2 niveles más profundos, como en `base` (`n_lgfm_levels: 2`), así que cada paso añade solo Mamba. Con atención en el nivel 2 el entrenamiento sería 2,2 veces más lento.
+
+Medido con `mamba_ssm`, patch 32×128×128 (los GFLOPs con `mamba_ssm` no incluyen el barrido de Mamba, que es pequeño; para el paper, medirlos con `MAMBALITE_FORCE_TORCH=1`):
+
+| Modelo | Parámetros | GFLOPs | VRAM entrenamiento | s/iteración | s/caso |
+|---|---|---|---|---|---|
+| base | 4,05 M | 24,8 | 0,78 GB | 0,29 | 3,8 |
+| dual | 5,26 M | 37,8 | 1,22 GB | 0,41 | 5,3 |
+| dualmid | 4,31 M | 37,6 | 1,21 GB | 0,38 | 5,2 |
+| m3lite | 4,05 M | 24,8 | 0,80 GB | 0,30 | 4,0 |
+| m4lite | 4,06 M | 25,0 | 0,94 GB | 0,32 | 4,4 |
+| wide | 15,80 M | 79,5 | 1,32 GB | 0,34 | 5,6 |
+| dualwide | 20,56 M | 120,4 | 2,06 GB | 0,57 | 8,6 |
+
+Lanzar toda la cola en Linux (reanudable; `--lista` muestra el estado):
+```
+./cola_experimentos.sh --lista
+nohup ./cola_experimentos.sh > runs/cola.log 2>&1 &
+```
+Orden: fase de arquitectura (1 `exp_dual`, 2 `arq_dualmid`, 3 `exp_dualwide`, 4 `arq_m3lite`, 5 `arq_m4lite`); después 6 `full_unet`, 7 `full_base_heldout_chup`, 8 `exp_suv`, 9 `full_ctx2mm`, 10 `exp_patch160`, 11 `full_base_e500`. Cada uno entrena, evalúa val y test con el checkpoint final y aplica el post-procesado. Comparar cada uno con su referencia con `tools/compare_runs` (prueba pareada por paciente).
+
+- Decisión tras `exp_dual` y `arq_dualmid`: qué fusión usar en la versión ancha. Si gana `dualmid`, conviene cambiar `exp_dualwide` por la fusión intermedia antes de que empiece.
+- Las ablaciones (sin Mamba, sin CGA3D, mismo barrido) quedan fuera de la cola hasta elegir la arquitectura final: se harán sobre ese modelo, no sobre base.
+
 ---
 
-## Cola de trabajos (en orden)
+## Cola de trabajos de Windows (obsoleta: reemplazada por `cola_experimentos.sh`)
 
 Fechas aproximadas, si la laptop no se apaga.
 

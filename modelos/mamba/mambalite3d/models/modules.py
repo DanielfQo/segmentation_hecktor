@@ -5,6 +5,8 @@ differences are listed in DEVIATIONS.md.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -164,14 +166,17 @@ class CGA3D(nn.Module):
 
 
 class MambaStage(nn.Module):
-    """Projection -> GSC3D -> AMF3D -> LGFM3D -> LayerNorm + projection (AMF's "LN & Proj")."""
+    """Projection -> GSC3D -> AMF3D -> LGFM3D -> LayerNorm + projection (AMF's "LN & Proj").
 
-    def __init__(self, cin: int, cout: int, cfg: MambaLiteConfig):
+    lgfm overrides cfg.use_lgfm for this stage (MambaLite3D drops the global attention on large maps)."""
+
+    def __init__(self, cin: int, cout: int, cfg: MambaLiteConfig, lgfm: Optional[bool] = None):
         super().__init__()
         self.proj = nn.Sequential(nn.Conv3d(cin, cout, 1), norm3d(cout))
         self.gsc = GSC3D(cout) if cfg.use_gsc else nn.Identity()
         self.amf = AMF3D(cout, cfg) if cfg.use_amf else BasicResBlock(cout, 3)
-        self.lgfm = LGFM3D(cout, cfg.heads) if cfg.use_lgfm else nn.Identity()
+        use_lgfm = cfg.use_lgfm if lgfm is None else lgfm
+        self.lgfm = LGFM3D(cout, cfg.heads) if use_lgfm else nn.Identity()
         self.out_norm = ChannelLayerNorm(cout)
         self.out_proj = nn.Conv3d(cout, cout, 1)
 

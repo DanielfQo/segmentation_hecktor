@@ -13,6 +13,7 @@ class MambaLiteConfig:
     orders: Sequence[str] = ORDERS  # scan order per group
     mixer: str = "mamba"  # "mamba" or "mlp" (Mamba-free control)
     n_mamba_levels: int = 2  # deepest encoder/decoder levels with MambaStage (plus the bottleneck)
+    n_lgfm_levels: Optional[int] = None  # deepest levels whose MambaStage keeps LGFM3D (global attention); None = all
     n_cga_levels: int = 3  # deepest skip connections filtered by CGA3D (others use FUE)
     use_gsc: bool = True
     use_amf: bool = True
@@ -27,6 +28,8 @@ class MambaLiteConfig:
     expand: int = 2
     chunk_size: int = 8  # chunk length of the parallel selective scan
     baseline: bool = False  # plain residual U-Net (no Mamba, no LGFM/CGA) for comparison
+    dual_encoder: bool = False  # one encoder per modality (CT, PET), fused level by level at the skips
+    dual_fusion: str = "levels"  # "levels": two complete encoders; "mid": separate only up to the first Mamba level
 
     def group_orders(self) -> List[str]:
         orders = list(self.orders)
@@ -43,9 +46,17 @@ VARIANTS = {
     "g1": {"groups": 1},
     "g2": {"groups": 2},
     "m3": {"n_mamba_levels": 3},
+    # Mamba at finer levels, global attention (LGFM3D) only where base has it: each step adds only Mamba
+    "m3lite": {"n_mamba_levels": 3, "n_lgfm_levels": 2},
+    "m4lite": {"n_mamba_levels": 4, "n_lgfm_levels": 2},
     "unet": {"baseline": True, "features": [32, 64, 128, 256, 320, 320], "bottleneck_features": 320},
     # wider MambaLite3D (more capacity; most extra VRAM is in the shallow levels)
     "wide": {"features": [24, 32, 64, 96, 128, 192], "bottleneck_features": 256},
+    # one encoder per modality: each stream has the full channel widths, so the encoder doubles in size
+    "dual": {"dual_encoder": True},
+    "dualwide": {"dual_encoder": True, "features": [24, 32, 64, 96, 128, 192], "bottleneck_features": 256},
+    # intermediate fusion: separate convolutional levels per modality, shared Mamba levels
+    "dualmid": {"dual_encoder": True, "dual_fusion": "mid"},
     "wide2": {"features": [32, 48, 96, 128, 192, 256], "bottleneck_features": 320},
 }
 
