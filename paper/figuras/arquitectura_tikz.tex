@@ -1,0 +1,124 @@
+% Diagrama de MambaLite3D (variante wide). Requiere tikz con las librerías arrows.meta y calc.
+% Se incluye en el paper con \input{figuras/arquitectura_tikz} y como PNG con arquitectura_standalone.tex.
+\begin{tikzpicture}[
+    font=\scriptsize,
+    >={Stealth[length=4pt]},
+    bloque/.style={draw=black!55, fill=black!6, rounded corners=2pt, minimum width=3.1cm,
+                   minimum height=0.68cm, align=center, inner sep=2pt},
+    conv/.style={bloque, fill=blue!9, draw=blue!45!black},
+    mamba/.style={bloque, fill=orange!28, draw=orange!70!black},
+    cga/.style={draw=teal!70!black, fill=teal!18, rounded corners=2pt, minimum width=1.25cm,
+                minimum height=0.5cm, align=center},
+    fue/.style={draw=black!50, fill=black!8, rounded corners=2pt, minimum width=1.25cm,
+                minimum height=0.5cm, align=center},
+    suma/.style={circle, draw=black!70, fill=white, inner sep=0pt, minimum size=0.36cm},
+    cabeza/.style={draw=black!50, fill=white, rounded corners=2pt, minimum width=1.5cm,
+                   minimum height=0.5cm, align=center},
+    io/.style={draw=black!70, fill=white, rounded corners=2pt, minimum width=3.1cm,
+               minimum height=0.68cm, align=center},
+    flecha/.style={->, draw=black!70, line width=0.6pt},
+    salto/.style={->, draw=black!60, line width=0.6pt},
+    compuerta/.style={->, draw=teal!70!black, dashed, line width=0.5pt},
+    etq/.style={font=\tiny, text=black!70},
+]
+\def\xe{0}      % columna del codificador
+\def\xs{5.0}    % columna de las conexiones de salto
+\def\xf{7.6}    % columna de las sumas
+\def\xd{10.0}   % columna del decodificador
+\def\xh{13.2}   % columna de las cabezas de supervisión
+\def\dy{1.15}
+
+% ---------------- entrada y codificador ----------------
+\node[io] (in) at (\xe, 1.25) {Entrada: CT + PET\\$2\times32\times128\times128$};
+\node[conv]  (e0) at (\xe, 0)          {Conv + Res\\24 \,·\, $32{\times}128{\times}128$};
+\node[conv]  (e1) at (\xe, -1*\dy)     {Stem DW 7 + Res\\32 \,·\, $32{\times}64{\times}64$};
+\node[conv]  (e2) at (\xe, -2*\dy)     {Conv + Res\\64 \,·\, $16{\times}32{\times}32$};
+\node[conv]  (e3) at (\xe, -3*\dy)     {Conv + Res\\96 \,·\, $8{\times}16{\times}16$};
+\node[mamba] (e4) at (\xe, -4*\dy)     {MambaStage\\128 \,·\, $4{\times}8{\times}8$};
+\node[mamba] (e5) at (\xe, -5*\dy)     {MambaStage\\192 \,·\, $4{\times}4{\times}4$};
+\node[mamba, minimum width=4.2cm] (b) at ({(\xe+\xf)/2}, -6.1*\dy)
+     {Cuello de botella: MambaStage\\256 \,·\, $4{\times}4{\times}4$};
+
+\draw[flecha] (in) -- (e0);
+\draw[flecha] (e0) -- node[etq, right] {DW conv, $s{=}(1,2,2)$} (e1);
+\draw[flecha] (e1) -- node[etq, right] {MaxPool $(2,2,2)$} (e2);
+\draw[flecha] (e2) -- node[etq, right] {MaxPool $(2,2,2)$} (e3);
+\draw[flecha] (e3) -- node[etq, right] {MaxPool $(2,2,2)$} (e4);
+\draw[flecha] (e4) -- node[etq, right] {MaxPool $(1,2,2)$} (e5);
+\draw[flecha] (e5.south) |- (b.west);
+
+% ---------------- decodificador ----------------
+\node[conv]  (d0) at (\xd, 0)          {Res\\24};
+\node[conv]  (d1) at (\xd, -1*\dy)     {Res\\32};
+\node[conv]  (d2) at (\xd, -2*\dy)     {Res\\64};
+\node[conv]  (d3) at (\xd, -3*\dy)     {Res\\96};
+\node[mamba] (d4) at (\xd, -4*\dy)     {MambaStage\\128};
+\node[mamba] (d5) at (\xd, -5*\dy)     {MambaStage\\192};
+\node[io]    (out) at (\xd, 1.25)      {Salida: 3 clases\\fondo, GTVp, GTVn};
+\draw[flecha] (d0) -- node[etq, right] {Conv $1{\times}1$ + softmax ($w{=}0.53$)} (out);
+
+% sumas, conexiones de salto y caminos de subida
+\foreach \i in {0,...,5} {
+    \node[suma] (f\i) at (\xf, -\i*\dy) {$+$};
+    \draw[flecha] (f\i) -- (d\i);
+}
+\foreach \i in {0,1,2} {
+    \node[fue] (s\i) at (\xs, -\i*\dy) {FUE};
+}
+\foreach \i in {3,4,5} {
+    \node[cga] (s\i) at (\xs, -\i*\dy) {CGA3D};
+}
+\foreach \i in {0,...,5} {
+    \draw[salto] (e\i) -- (s\i);
+    \draw[salto] (s\i) -- (f\i);
+}
+% subida desde el nivel inferior: ConvTranspose (o conv 1x1 desde el cuello de botella).
+% Sale del borde superior del bloque de abajo, sube por el hueco entre filas y entra a la suma por debajo.
+\def\xu{8.95}
+\foreach \i/\j in {0/1,1/2,2/3,3/4,4/5} {
+    \draw[flecha] (\xu, -\j*\dy+0.34) -- (\xu, -\i*\dy-0.55) -- (\xf, -\i*\dy-0.55) -- (f\i.south);
+    \node[etq, anchor=west] at (\xu+0.05, -\i*\dy-0.66) {ConvT};
+}
+\draw[flecha] (b.east) -| (f5.south);
+\node[etq, anchor=west] at (\xf+0.05, -6.1*\dy+0.2) {Conv $1{\times}1$};
+% compuerta de CGA3D: usa el mapa del decodificador que llega a la suma
+\foreach \i in {3,4,5} {
+    \draw[compuerta] (\xf, -\i*\dy-0.55) -| (s\i.south);
+}
+
+% supervisión profunda
+\foreach \i/\w in {1/0.27,2/0.13,3/0.07,4/0} {
+    \node[cabeza] (h\i) at (\xh, -\i*\dy) {Conv $1{\times}1$\\$w{=}\w$};
+    \draw[flecha] (d\i) -- (h\i);
+}
+\node[etq, above=1pt of h1, align=center] {Supervisión\\profunda};
+
+% ---------------- detalle de MambaStage ----------------
+\begin{scope}[shift={(0,-8.35)}]
+    \node[font=\scriptsize\bfseries, anchor=west] at (-1.6, 0.75) {MambaStage};
+    \tikzset{paso/.style={draw=orange!70!black, fill=orange!14, rounded corners=2pt,
+                          minimum height=0.62cm, align=center, inner sep=3pt}}
+    \node[paso] (m0) at (-0.6, 0)  {Proy. $1{\times}1$\\+ norm.};
+    \node[paso, right=0.45cm of m0] (m1) {GSC3D};
+    \node[paso, right=0.45cm of m1] (m2) {AMF3D\\4 grupos: fwd, rev, slice, ap};
+    \node[paso, right=0.45cm of m2] (m3) {LGFM3D\\conv DW local + atención global};
+    \node[paso, right=0.45cm of m3] (m4) {LN + proy.\\$1{\times}1$};
+    \draw[flecha] (m0) -- (m1);
+    \draw[flecha] (m1) -- (m2);
+    \draw[flecha] (m2) -- (m3);
+    \draw[flecha] (m3) -- (m4);
+\end{scope}
+
+% ---------------- leyenda ----------------
+\begin{scope}[shift={(0,-9.6)}]
+    \tikzset{muestra/.style={minimum width=0.5cm, minimum height=0.3cm}}
+    \node[conv, muestra] (l1) at (-1.3, 0) {};
+    \node[anchor=west] (t1) at (l1.east) {Bloque convolucional residual};
+    \node[mamba, muestra, right=0.5cm of t1] (l2) {};
+    \node[anchor=west] (t2) at (l2.east) {Bloque con Mamba};
+    \node[cga, muestra, right=0.5cm of t2] (l3) {};
+    \node[anchor=west] (t3) at (l3.east) {Atención cruzada (CGA3D)};
+    \node[fue, muestra, right=0.5cm of t3] (l4) {};
+    \node[anchor=west] at (l4.east) {FUE (sin parámetros)};
+\end{scope}
+\end{tikzpicture}

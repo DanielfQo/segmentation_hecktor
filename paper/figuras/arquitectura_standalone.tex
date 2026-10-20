@@ -1,0 +1,10 @@
+% Compila el diagrama de arquitectura como imagen independiente:
+%   cd paper/figuras && tectonic arquitectura_standalone.tex
+%   pdftoppm -r 300 -png -singlefile arquitectura_standalone.pdf arquitectura
+\documentclass[border=6pt]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\begin{document}
+\input{arquitectura_tikz}
+\end{document}
