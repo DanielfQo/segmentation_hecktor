@@ -40,3 +40,8 @@ venv/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Analisis: salidas y figuras (se regeneran con los scripts de analisis/)
+analisis/salidas/
+analisis/figuras/*
+!analisis/figuras/fig1_histogramas_por_centro.png

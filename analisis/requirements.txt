@@ -1,0 +1,20 @@
+# Etapas 1 y 2 (caracterizacion y analisis)
+nibabel>=5.2
+numpy>=1.26
+scipy>=1.11
+scikit-image>=0.22      # marching cubes para la superficie de la mascara
+pandas>=2.1
+matplotlib>=3.8
+tabulate>=0.9           # pandas.to_markdown, para el informe
+pytest>=7.4
+
+# Etapa 3 (visor del pipeline): lo que necesita el preprocesado de mambalite3d
+SimpleITK>=2.3
+pyyaml>=6.0
+torch>=2.2              # solo para el aumento de datos; vale la rueda de CPU:
+                        #   pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Backend grafico del visor. Sin uno de estos, matplotlib se queda en 'agg' y
+# la ventana no abre. PyQt6 da ventana nativa; tornado, el visor en navegador.
+PyQt6>=6.6
+tornado>=6.3
