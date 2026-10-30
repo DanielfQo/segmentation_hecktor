@@ -6,7 +6,7 @@
 #   ./cola_experimentos.sh --lista               # muestra el orden y el estado de cada experimento
 #   ./cola_experimentos.sh                       # corre los que falten, en orden
 #   ./cola_experimentos.sh --solo exp_dual       # corre solo los nombrados
-#   ./cola_experimentos.sh --desde full_unet     # empieza en ese experimento
+#   ./cola_experimentos.sh --desde arq_m3lite    # empieza en ese experimento
 #   nohup ./cola_experimentos.sh > runs/cola.log 2>&1 &    # en segundo plano, sobrevive al cerrar la terminal
 #
 # Es seguro relanzarlo: salta lo que ya termino y reanuda el entrenamiento desde la ultima epoca guardada.
@@ -20,12 +20,11 @@ EXPERIMENTOS=(
   # fase 1: arquitectura
   "exp_dual|--config configs/exp_dual.yaml|8|arquitectura: doble codificador, fusion en cada nivel, base (prioridad)"
   "arq_dualmid|--config configs/full.yaml --variant dualmid --name arq_dualmid|8|arquitectura: fusion intermedia CT/PET, base"
-  "exp_dualwide|--config configs/exp_dualwide.yaml|14|arquitectura: doble codificador, wide (prioridad)"
+  "full_base_heldout_chup|--config configs/full_heldout_chup.yaml --name full_base_heldout_chup|6|generalizacion a un centro no visto"
   "arq_m3lite|--config configs/full.yaml --variant m3lite --name arq_m3lite|6|arquitectura: Mamba tambien en el nivel 3, base"
   "arq_m4lite|--config configs/full.yaml --variant m4lite --name arq_m4lite|7|arquitectura: Mamba tambien en los niveles 2 y 3, base"
+  "exp_dualwide|--config configs/exp_dualwide.yaml|14|arquitectura: doble codificador, wide (prioridad)"
   # despues: experimentos que no son ablaciones
-  "full_unet|--config configs/full.yaml --variant unet --name full_unet|9|linea base sin Mamba"
-  "full_base_heldout_chup|--config configs/full_heldout_chup.yaml --name full_base_heldout_chup|6|generalizacion a un centro no visto"
   "exp_suv|--config configs/exp_suv.yaml|6|PET en SUV absoluto (ganglios falsos)"
   "full_ctx2mm|--config configs/exp_ctx2mm.yaml|7|mas contexto con parche 48x96x96 a 2 mm"
   "exp_patch160|--config configs/exp_patch160.yaml|15|mas contexto con parche 48x160x160"
@@ -54,7 +53,7 @@ listar() {
     printf '%2d  %-22s %-25s %5s  %s\n' "$i" "$n" "$(estado "$n")" "~$h" "$(campo "$e" 4)"
     terminado "$n" || total=$((total + h))
   done
-  echo "Horas aproximadas pendientes: ~$total (con mamba_ssm; full_unet, ctx2mm y patch160 estan por medir)"
+  echo "Horas aproximadas pendientes: ~$total (con mamba_ssm; ctx2mm y patch160 estan por medir)"
 }
 
 correr() {
@@ -112,9 +111,14 @@ python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" ||
 mkdir -p runs
 exec 9>runs/.cola.lock
 flock -n 9 || { echo "ya hay una cola corriendo" >&2; exit 1; }
+# systemd-inhibit solo funciona dentro de una sesion de logind: lanzada con nohup/setsid o desde cron
+# polkit la deniega, asi que se comprueba antes y, si no se puede, la cola sigue igual (sin la proteccion).
 if [[ -z "${COLA_INHIBIDA:-}" ]] && command -v systemd-inhibit >/dev/null 2>&1; then
   export COLA_INHIBIDA=1
-  exec systemd-inhibit --what=sleep:idle --who=mambalite3d --why="entrenamiento" "$0" "$@"
+  if systemd-inhibit --what=sleep:idle --who=mambalite3d --why="comprobacion" true 2>/dev/null; then
+    exec systemd-inhibit --what=sleep:idle --who=mambalite3d --why="entrenamiento" "$0" "$@"
+  fi
+  echo "aviso: no se pudo inhibir la suspension (sin sesion de logind); la cola sigue sin ella" >&2
 fi
 
 listar
